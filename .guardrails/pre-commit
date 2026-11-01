@@ -1,0 +1,4 @@
+#!/bin/sh
+# Sudo Supply guardrails: block commits that contain secrets or .env/key files.
+# Install: cp .guardrails/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+exec python3 "$(git rev-parse --show-toplevel)/.guardrails/scan_secrets.py" --staged
