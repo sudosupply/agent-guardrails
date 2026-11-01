@@ -27,6 +27,11 @@ from scan_secrets import is_sensitive_filename, scan_text  # noqa: E402
 
 DENY, ASK = "deny", "ask"
 
+# Command words like sudo, shred or bfg must stand alone, so a path such as
+# C:\Users\me\sudo-supply\app or src/shred.ts is not mistaken for the command.
+_W = r"(?<![\w.-])"  # not preceded by a word char, dot or hyphen
+_E = r"(?![\w.-])"  # not followed by a word char, dot or hyphen
+
 # (decision, pattern, reason). Patterns are matched against each sub-command
 # (split on && || ; | and newlines) and against the full command text.
 SHELL_RULES: list[tuple[str, str, str]] = [
@@ -36,7 +41,7 @@ SHELL_RULES: list[tuple[str, str, str]] = [
     (DENY, r"\brm\s+.*--no-preserve-root", "rm --no-preserve-root"),
     (ASK, r"\brm\s+(-\S+\s+)*-[a-zA-Z]*[rR]", "recursive delete"),
     (ASK, r"\bfind\b.*\s(-delete|-exec\s+rm)\b", "bulk delete with find"),
-    (DENY, r"\b(mkfs(\.\w+)?|wipefs|shred)\b|\bdd\b.*\bof=/dev/", "disk-level destructive command"),
+    (DENY, _W + r"mkfs(\.\w+)?(?=\s+[^\s|;&])|" + _W + r"(wipefs|shred)" + _E + r"|\bdd\b.*\bof=/dev/", "disk-level destructive command"),
     (DENY, r"\bchmod\s+(-\S+\s+)*-R\s+0?777\b|\bchmod\s+0?777\s+-R\b", "recursive chmod 777"),
     # --- git history and work-in-progress
     (DENY, r"\bgit\s+(?:-[cC]\s+\S+\s+|--[\w-]+(?:=\S+)?\s+)*push\b.*(\s--force(?!-with-lease)\b|\s-[a-zA-Z]*f\b|\s\+\S+)", "force-push (rewrites remote history)"),
@@ -48,13 +53,13 @@ SHELL_RULES: list[tuple[str, str, str]] = [
     (ASK, r"\bgit\s+(checkout|restore)\b.*\s(--\s+)?\.(\s|$)", "discarding all local changes"),
     (ASK, r"\bgit\s+branch\b.*\s-D\b", "force-deleting a branch"),
     (ASK, r"\bgit\s+stash\s+(drop|clear)\b", "deleting stashed work"),
-    (DENY, r"\bgit\s+(filter-branch|filter-repo)\b|\bbfg\b", "rewriting repository history"),
+    (DENY, r"\bgit\s+(filter-branch|filter-repo)\b|" + _W + r"bfg(\.jar)?" + _E, "rewriting repository history"),
     (ASK, r"\bgit\s+(commit|push|merge|rebase)\b.*\s--no-verify\b", "skipping git hooks (--no-verify)"),
     (DENY, r"\bgit\s+add\b.*(\s|/)\.env(\s|$|\.(?!example|sample|template|dist))", "staging a .env file"),
     # --- databases and infrastructure
     (ASK, r"(?i)\b(drop\s+(database|schema|table)|truncate\s+(table\s+)?\w)", "dropping or truncating database objects"),
     (ASK, r"(?i)\bdelete\s+from\s+[\w.\"`]+\s*(;|$|\"|')", "DELETE without WHERE"),
-    (ASK, r"\b(dropdb|dropuser)\b|(?i:\bflush(all|db)\b)", "dropping a database or flushing a cache store"),
+    (ASK, _W + r"(dropdb|dropuser)" + _E + "|" + _W + r"(?i:flush(all|db))" + _E, "dropping a database or flushing a cache store"),
     (ASK, r"\b(prisma\s+migrate\s+reset|prisma\s+db\s+push\s+.*--force-reset|rails\s+db:(drop|reset)|rake\s+db:(drop|reset)|manage\.py\s+flush|alembic\s+downgrade\s+base)\b", "resetting a database"),
     (ASK, r"\b(terraform|tofu)\s+(destroy|apply\b.*-auto-approve)|\bpulumi\s+destroy\b", "destroying or auto-applying infrastructure"),
     (ASK, r"\bkubectl\s+delete\b|\bhelm\s+uninstall\b", "deleting cluster resources"),
@@ -66,7 +71,7 @@ SHELL_RULES: list[tuple[str, str, str]] = [
     # --- remote code execution and leaks
     # curl/wget piped into a shell or interpreter, bash <(curl ...), and bash -c "$(curl ...)" (Homebrew-style)
     (DENY, r"""\b(curl|wget)\b[^|]*\|\s*(sudo\s+)?(-\S+\s+)*((ba|z|k|da)?sh\b|(python[\d.]*|node|perl|ruby|php)\b(?!\s+(-[a-zA-Z]*[cemEp]\b|--eval\b|--print\b)))|\b((ba|z|k|da)?sh|python[\d.]*|node|perl|ruby)\s+<\s*\(\s*(curl|wget)|\b(ba|z|k|da)?sh\s+(-\S+\s+)*-c\s+["']?\$\(\s*(curl|wget)\b""", "piping a remote script into a shell"),
-    (ASK, r"\bsudo\b", "running as root"),
+    (ASK, _W + "sudo" + _E, "running as root"),
     (ASK, r"(^|\s)(printenv|env)\s*($|\|)|\bset\s*\|", "dumping all environment variables"),
     (ASK, r"\b(cat|less|more|head|tail|bat|type|nl|xxd|strings|cp|scp|base64)\b[^|;&]*(^|[\s/])\.env(\.(?!example|sample|template|dist)\w+)?(\s|$)", "reading a .env file"),
     (ASK, r"\b(cat|less|more|head|tail|cp|scp|base64)\b.*(id_rsa|id_ed25519|\.pem\b|\.p12\b|\.aws/credentials|\.npmrc|\.netrc|\.pgpass)", "reading a key or credentials file"),

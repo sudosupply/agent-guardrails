@@ -58,6 +58,9 @@ def claude_decision(tool: str, tool_input: dict) -> str:
 
 SHELL_CASES = [
     # (command, expected decision: deny / ask / none)
+    ('cd "C:\\Users\\me\\sudo-guardrails-test\\app" && git status && git diff', "none"),
+    ("cd /c/Users/me/sudo-supply/app && git log --oneline -5", "none"), ("cat src/sudo.ts", "none"),
+    ("sudo -E npm i -g x", "ask"),
     ("ls -la", "none"), ("npm test", "none"), ("git status", "none"),
     ("git log --format='%h %s' -n 5", "none"), ("git push origin feature/login", "none"),
     ("git push -u origin feature/login", "none"), ("rm file.txt", "none"),
