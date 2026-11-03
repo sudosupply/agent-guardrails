@@ -242,8 +242,75 @@ def test_settings() -> None:
         check(f"{f} executable", os.access(ROOT / ".guardrails" / f, os.X_OK))
 
 
+def cursor_shell_decision(cmd: str) -> str:
+    code, out = run_guard("cursor-shell", {"command": cmd, "cwd": str(ROOT), "hook_event_name": "beforeShellExecution"})
+    assert code == 0, (cmd, code)
+    o = json.loads(out)
+    return "none" if o["permission"] == "allow" else o["permission"]
+
+
+def test_nested() -> None:
+    """Wrapped and nested commands (sh -c, eval, $(), backticks, xargs, find -exec, ...)."""
+    sys.path.insert(0, str(ROOT / "tests"))
+    sys.path.insert(0, str(ROOT / ".guardrails"))
+    import guard  # noqa: E402
+    from nested_cases import BENIGN_AGENT, KNOWN_FALSE_POSITIVES, NESTED_CASES, nest_single
+
+    for label, cmd, want in NESTED_CASES + KNOWN_FALSE_POSITIVES:
+        got = claude_decision("Bash", {"command": cmd, "description": "t"})
+        check(f"nested claude [{label}] {cmd[:60]!r}", got == want, f"want {want}, got {got}")
+        got = cursor_shell_decision(cmd)
+        check(f"nested cursor-shell [{label}] {cmd[:60]!r}", got == want, f"want {want}, got {got}")
+    for cmd in BENIGN_AGENT:
+        got = guard.check_command(cmd)
+        check(f"benign agent command {cmd[:60]!r}", got is None, str(got))
+    # depth limit fails closed, benign or not
+    for n in range(guard.MAX_DEPTH + 1, guard.MAX_DEPTH + 4):
+        got = guard.check_command(nest_single("echo hi", n))
+        check(f"{n} levels of sh -c blocks", got is not None and got[0] == "deny", str(got))
+    got = guard.check_command(nest_single("echo hi", guard.MAX_DEPTH - 1))
+    check("nesting within the limit is allowed", got is None, str(got))
+    got = guard.check_command("`" * 3001)
+    check("too many derived commands blocks", got is not None and got[0] == "deny", str(got))
+    # a crash in the nested analysis blocks instead of passing
+    real = guard.check_nested
+    def boom(_cmd):
+        raise ValueError("boom")
+    guard.check_nested = boom
+    try:
+        got = guard.check_command("ls")
+        check("nested analysis crash fails closed", got is not None and got[0] == "deny", str(got))
+    finally:
+        guard.check_nested = real
+    # unparsable payloads that could hide a command block; plain text with a stray quote doesn't
+    for cmd in ["sh -c 'rm -rf /", "eval \"echo hi", "bash -c \"$(echo hi"]:
+        got = guard.check_command(cmd)
+        check(f"unparsable payload blocks {cmd!r}", got is not None and got[0] == "deny", str(got))
+    got = guard.check_command("echo it's fine")
+    check("stray apostrophe in plain text passes", got is None, str(got))
+    # random input never crashes and stays fast
+    import random
+    import time
+    rnd = random.Random(7)
+    alpha = list("abcrm -f/~.$()`'\"\\;|&<>{}*\n#=") + ["sh -c ", "eval ", "xargs ", "find . -exec ", "$(", "<<EOF\n",
+                                                        "python -c ", "sudo ", "base64 -d"]
+    worst = 0.0
+    for _ in range(3000):
+        s = "".join(rnd.choice(alpha) for _ in range(rnd.randint(1, 60)))
+        t0 = time.perf_counter()
+        try:
+            guard.check_nested(s)
+            ok = True
+        except Exception as exc:  # pragma: no cover
+            ok = False
+            check(f"fuzz no crash {s!r}", False, repr(exc))
+        worst = max(worst, time.perf_counter() - t0)
+    check("fuzz: no crashes", ok)
+    check("fuzz: every input checked in under 0.5 s", worst < 0.5, f"{worst:.3f}s")
+
+
 if __name__ == "__main__":
-    for fn in [test_shell, test_read, test_write, test_robustness, test_scanner, test_settings]:
+    for fn in [test_shell, test_read, test_write, test_robustness, test_scanner, test_settings, test_nested]:
         fn()
     for f in failures:
         print("FAIL", f)
