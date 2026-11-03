@@ -5,10 +5,10 @@
       { "command": "python3 .guardrails/guard.py cursor-shell", "timeout": 10, "failClosed": true }
     ],
     "beforeReadFile": [
-      { "command": "python3 .guardrails/guard.py cursor-read", "timeout": 10 }
+      { "command": "python3 .guardrails/guard.py cursor-read", "timeout": 10, "failClosed": true }
     ],
     "preToolUse": [
-      { "command": "python3 .guardrails/guard.py cursor-write", "matcher": "Write", "timeout": 10 }
+      { "command": "python3 .guardrails/guard.py cursor-write", "matcher": "Write", "timeout": 10, "failClosed": true }
     ]
   }
 }

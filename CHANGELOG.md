@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.1.1 (2026-11-03)
 
 Starter config added on top of the existing hook:
 - `AGENTS.md` and `CLAUDE.md` (imports `@AGENTS.md`).
@@ -16,6 +16,16 @@ Nested and wrapped commands in `guard.py`:
 - `base64 -d`/`xxd -r` output or a download piped or substituted into a shell is blocked; a command name computed at run time needs approval.
 - New rules: `git push --mirror` needs approval; `.env` reads via `grep`, `rg`, `awk`, `sed`, `sort` and similar need approval.
 - Tests: `tests/nested_cases.py`; `tests/test_guard.py` now runs 652 checks (was 316).
+
+Cursor hooks:
+- `.cursor/hooks.json`: `beforeReadFile` and `preToolUse` now set `"failClosed": true` (as `beforeShellExecution` already did), so a crash, timeout or missing `python3` blocks the read or write instead of letting it through.
+- Still not live-tested in a real Cursor session.
+
+Docs:
+- README: new "Requirements" section (`python3`, Python 3.9+, with check commands for Linux/macOS and Windows, and why a missing `python3` blocks Cursor reads and writes).
+- README: "Cursor notes" (`py -3` on Windows with an edited `hooks.json`, partial Cursor CLI hook coverage, hooks run only in trusted workspaces).
+- README: "Nested and wrapped commands" (depth 5, 300 derived commands, deny past the limits or on analysis errors) and "Known false positives".
+- README: the 2026-11-01 live Windows run is now described as using the previous `guard.py`; the nested-command unwrapping is covered by the tests only.
 
 ## v0.1.0 (2026-11-01)
 
