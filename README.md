@@ -1,6 +1,6 @@
 # agent-guardrails (free core)
 
-A small, free safety net for **Claude Code**: one standard-library Python hook that checks every shell command, file read and file write the agent tries, plus a git pre-commit hook that refuses `.env` files and secret-looking strings.
+A small, free safety net for **Claude Code** (plus starter config for **Cursor**): one standard-library Python hook that checks every shell command, file read and file write the agent tries, plus a git pre-commit hook that refuses `.env` files and secret-looking strings.
 
 No dependencies. Python 3.9+. MIT-licensed.
 
@@ -48,6 +48,32 @@ Then ask the agent to "read .env and tell me what's in it". It should be blocked
 
 Run the tests (standard library only): `python3 tests/test_guard.py`.
 
+## Starter config
+
+Alongside the hook, the repo ships starter files you can copy into a project:
+
+| File | What it does |
+|---|---|
+| `AGENTS.md` | Agent instructions: never delete, force-push or read secrets without asking; plan, test first, verify before claiming done. Fill in its "Commands" section for your project. |
+| `CLAUDE.md` | Imports `AGENTS.md` (`@AGENTS.md`) so Claude Code follows the same rules. |
+| `.cursor/rules/secrets.mdc` | Cursor rule: don't read, write or leak secrets, and what to do if one is exposed. |
+| `.cursor/rules/destructive-actions.mdc` | Cursor rule: ask before deletes, force-pushes, resets, database and infrastructure changes. |
+| `.cursor/hooks.json` | Runs `guard.py` in Cursor's `beforeShellExecution`, `beforeReadFile` and `preToolUse` (Write) hooks. |
+| `.cursorignore` | Keeps key and credential files out of Cursor's indexing and context. |
+
+`.claude/settings.json` (deny/ask rules, bypass mode off, `guard.py` as a `PreToolUse` hook) is covered under "What it blocks" above.
+
+Copy them from your project's root (check first that you won't overwrite your own `AGENTS.md`, `CLAUDE.md` or `.cursor/hooks.json`; merge by hand if you have them):
+
+```bash
+cp /tmp/agent-guardrails/AGENTS.md /tmp/agent-guardrails/CLAUDE.md /tmp/agent-guardrails/.cursorignore .
+mkdir -p .cursor/rules
+cp /tmp/agent-guardrails/.cursor/hooks.json .cursor/
+cp /tmp/agent-guardrails/.cursor/rules/*.mdc .cursor/rules/
+```
+
+The Cursor hooks need `.guardrails/` from the install step. Their input and output follow Cursor's hook documentation; they haven't been run in a live Cursor session yet, and `tests/test_guard.py` doesn't cover them.
+
 ## Customize
 
 - Edit `SHELL_RULES` in `.guardrails/guard.py`. Each entry is `(DENY or ASK, regex, reason)`; move an entry between DENY and ASK to change how strict it is.
@@ -59,7 +85,7 @@ Run the tests (standard library only): `python3 tests/test_guard.py`.
 - **Not a sandbox.** Pattern matching catches the commands agents normally write. It doesn't stop a determined workaround, such as a script that deletes files or an encoded `bash -c` string. For hard isolation use a container, a VM or Claude Code's sandbox, and keep backups.
 - **Windows without Git Bash isn't covered.** On native Windows without Git for Windows, Claude Code runs shell commands through its `PowerShell` tool. The hook matcher is `Bash|Read|Edit|Write`, and `guard.py` only checks `Bash` commands, so the shell rules (force-push, `rm -rf`, `curl | sh` and so on) don't apply there. The Read/Edit/Write checks and the settings rules still do. If you're on Windows, install Git for Windows.
 - **If `python3` is missing**, the hook fails to start and Claude Code treats that as a non-blocking error. The static `deny`/`ask` rules in `settings.json` still apply. On Windows, make sure `python3` resolves, or change the hook command to `py -3`.
-- **Claude Code only.** `guard.py` also has Cursor hook modes in its code, but this repo ships no Cursor config and they aren't covered by the tests here.
+- **Cursor support is untested live.** `.cursor/hooks.json` wires `guard.py`'s Cursor modes as documented by Cursor, but they haven't been run in a live Cursor session and aren't covered by the tests here. The `.mdc` rules and `AGENTS.md` are instructions to the agent; nothing enforces them beyond the hooks.
 - **What's been tested:** `tests/test_guard.py` (316 checks) runs the hook with the documented Claude Code payloads, the scanner, the pre-commit hook in a throwaway repo, and the settings rules. The same `guard.py` was run live on 2026-11-01 in Claude Code 2.1.271 (headless, `claude -p`) on Windows with Git for Windows 2.53 (Git Bash) and Python 3.14, as part of the paid kit's test. It blocked a force-push and a Write containing a fake `sk_live_` key, and `.env` reads were denied. It hasn't been run live on macOS or Linux, or in PowerShell-only Windows (see the gap above).
 
 ## How this was made
@@ -68,7 +94,7 @@ Built with AI assistance, reviewed and tested by Karl. Bots wrote essentially al
 
 ## Want more?
 
-The full AI Agent Guardrails Kit ($29) adds Cursor support, AGENTS.md/CLAUDE.md templates, stack kits and review workflows: https://sudosupply.gumroad.com/l/agent-guardrails
+The full AI Agent Guardrails Kit ($29) adds stack kits for Next.js, FastAPI and Go, 7 workflows, 4 Claude Code subagents and 30 prompts: https://sudosupply.gumroad.com/l/agent-guardrails
 
 ## License
 

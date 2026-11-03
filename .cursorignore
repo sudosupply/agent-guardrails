@@ -1,0 +1,15 @@
+# Keep secrets out of Cursor's Agent, Tab and @-mentions.
+# Cursor already ignores .env* and everything in .gitignore by default; these add keys and credential files.
+# .cursorignore does not stop terminal commands. The hooks in .cursor/hooks.json cover those.
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+**/id_rsa
+**/id_ed25519
+**/.netrc
+**/.npmrc
+**/credentials.json
+**/secrets.json
+**/service-account*.json
+**/.aws/credentials

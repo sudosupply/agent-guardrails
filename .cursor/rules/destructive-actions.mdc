@@ -1,0 +1,24 @@
+---
+description: "Running shell or git commands, deleting or moving files, bulk edits, database work or migrations, infrastructure, deploy or publish commands"
+alwaysApply: false
+---
+# Destructive actions guardrail
+
+Treat anything that can't be undone with `git checkout` as destructive. Before running it, say exactly what it will change and get an explicit "yes" from the user in this conversation. A past approval doesn't carry over to a new command.
+
+## Files
+- No `rm -rf` on broad targets: `/`, `~`, `.`, `..`, `*`, or a variable that might be empty (`rm -rf "$DIR/"`).
+- For bulk deletes or rewrites, list the exact files first, get approval, then act. Prefer `git rm` and `git mv` so the change is reviewable.
+
+## Git
+- Never `git push --force` or rewrite history unless the user asks for it on their own branch.
+- Ask first: any `git push`, `git reset --hard`, `git clean -f`, `git branch -D`, `git stash drop`.
+- Before a risky git step, make it recoverable (`git stash push -u` or `git branch backup/<name>`) and tell the user how to get back.
+
+## Data and infrastructure
+- Never run `DROP`, `TRUNCATE`, or `DELETE`/`UPDATE` without `WHERE` unless the user confirms the target is a disposable local database.
+- Ask first: `terraform apply`/`destroy`, `kubectl delete`, cloud deletes, publishing packages, deploy scripts.
+- Never pipe a downloaded script into a shell (`curl … | sh`).
+
+## If something destructive already happened
+Stop. Don't "fix forward" with more destructive commands. Report exactly what ran, then look for recovery options: `git reflog`, stashes, editor local history, backups.

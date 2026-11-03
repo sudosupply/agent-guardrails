@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+Starter config added on top of the existing hook:
+- `AGENTS.md` and `CLAUDE.md` (imports `@AGENTS.md`).
+- `.cursor/rules/secrets.mdc` and `.cursor/rules/destructive-actions.mdc`.
+- `.cursor/hooks.json` wiring `guard.py`'s Cursor modes (not yet tested in a live Cursor session).
+- `.cursorignore` for key and credential files.
+- README: "Starter config" section; `.gitignore`: `CLAUDE.local.md`.
+
 ## v0.1.0 (2026-11-01)
 
 First public release of the free core, taken from the AI Agent Guardrails Kit v0.1.2:
